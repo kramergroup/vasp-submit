@@ -1,0 +1,10 @@
+{
+ "timeout": 30,
+ "sub_cmd": "sbatch",
+ "hpc_fld": "/scratch/as7g17/2D_tmd_alloy/CE_Mo-WS2",
+ "hostname": "iridis5",
+ "env_setup": "~/bin/env.sh",
+ "queue_cmd": "squeue",
+ "queue_status_ind": 4,
+ "re_jobid": "Submitted\\s+\\w+\\s+job\\s+(\\d+)"
+}
