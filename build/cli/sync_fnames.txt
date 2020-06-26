@@ -1,0 +1,3 @@
+run.final/vasprun.xml
+run.final/CONTCAR
+properties.calc.json
