@@ -1,9 +1,9 @@
 #!/bin/bash
 
 WDIR=$PWD
-QSCRIPT_FILE=$WDIR/tmpl/qscript
-CL_FILE=$WDIR/tmpl/ir5.json
-echo $WDIR
+QSCRIPT_FILE=$WDIR/submit_tmpl/qscript.ir5_driver
+CL_FILE=$WDIR/submit_tmpl/ir5.json
+echo "Working from  $WDIR"
 
 if [ ! -e "$CL_FILE" ] ; then
     echo "Missing cluster config file"
@@ -29,7 +29,7 @@ else
     JOB_NAME=$(basename $SUBPATH)
 fi
 
-if [ "$2" ] ; then
+if [ "$3" ] ; then
     WALLTIME="$3"
 else
     # If not give set to max on Iridis5

@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# Submission script for VASP relax with CASM
+# Silva 21-02-2020
+
+#-------------------------------------
+# SLURM DIRECTIVES
+#-------------------------------------
+# Template fileds {-} are supposed to be changed from parent script, setting name of the calculation.
+#SBATCH --job-name=$JOB_NAME
+#SBATCH --nodes=$NUM_NODES    # Number of nodes requested
+#SBATCH --time=02:00:00 # walltime
+#SBATCH --ntasks-per-node=40
+#SBATCH --partition=scavenger
+#SBATCH --requeue
+#SBATCH --error="$JOB_NAME.err" # Bug in Iridis5 scheduler installation prevent us from
+#SBATCH --output="$JOB_NAME.out" # using SLURM JOBNAME variable
+
+
+#-------------------------------------
+# PRELIMINARIES: ENVIRONMENT
+#-------------------------------------
+# Define the VASP executable and load necessary modules
+# Uncomment what you need!
+export VASP=${HOME}/bin/vasp_5.4.3.intel.iridis5
+export VASP_DRIVER=${HOME}/bin/vasp-driver.pyz
+export PATH=$(pwd):$PATH
+module purge
+module load intel-mpi/2018.1.163 intel-mkl/2018.1.163 python
+opt=""
+w_dir=$SLURM_SUBMIT_DIR
+cd $w_dir
+#-----------------
+
+#-------------------------------------
+# PRELIMINARIES: USEFUL FUNCTIONS
+#-------------------------------------
+function bkp_run {
+    # Create bkp folder based on given name and move VASP relevant files there
+    echo "Bkp $1"
+    to_bkp=( vasprun.xml POSCAR INCAR KPOINTS OUTCAR CONTCAR )
+    bkp_fld="bkp-$1"
+    mkdir $bkp_fld
+    cp ${to_bkp[@]} $bkp_fld/
+}
+
+function geom_update {
+    # If CONTCAR is not empty, update POSCAR file
+    if [ -s CONTCAR ] ;
+    then
+	echo "Updating geom: CONTCAR to POSCR"
+	mv CONTCAR POSCAR ;
+    else
+	echo "WARNING: CONTCAR in $PWD empty. Geometry not updated." >&2
+    fi
+}
+
+function input_check {
+    # Check that input for VASP at least exists in current folder
+    inputs=( POSCAR KPOINTS POTCAR INCAR )
+    echo "Check input in $PWD"
+    for f in ${inputs[@]}
+    do
+	    if ! [ -s $f ] ;
+	    then
+		echo "ERROR: input $f is empty/does not exist" >&2
+		exit 1
+	    fi
+    done
+}
+
+function vasp_clean {
+    # Remove uselss output (contained in vasprun.xml or OUTCAR)
+    # At deep level remove big files with charge denisty and wavef
+    # If it's a wrong run, "all" will remove all output
+    to_remove=( DOSCAR EIGENVAL IBZKPT PCDAT REPORT XDATCAR OSZICAR )
+
+    echo -n "Cleaning vasp output in $PWD at normal"
+    # Reset flags from previous calls
+    deep_rm=""
+    all_output=""
+
+    # Remove all output files
+    if [ $1 == "a" ]
+    then
+    	echo -n "+all"
+    	all_output=( OUTCAR CONTCAR vasprun.xml )
+    	$1="d" # Update so that deep clean is enabled
+    fi
+
+    # If space is a problem, remove big output. NOTE: this is not in vasprun.xml
+    if [ $1 == "d" ]
+    then
+	    echo -n "+deep"
+    	deep_rm=( CHG CHGCAR WAVECAR )
+    fi
+
+    echo " level"
+    # I KNOW IT IS DANGEROUS, USE IT WISELY. DO NOT PUT -r, DEAL WITH FOLDERS OUTSIDE.
+    rm -f ${to_remove[@]} ${all_output[@]} ${deep_rm[@]}
+}
+
+#-------------------------------------
+# CALL VASP DRIVER
+#-------------------------------------
+
+# Call relax routing of CASM
+python $VASP_DRIVER relax --ncpus $SLURM_NTASKS $SLURM_SUBMIT_DIR
+
+# If completed
+if $(python $VASP_DRIVER check)
+then
+    # Extract properties needed by CASM
+    python $VASP_DRIVER properties $SLURM_SUBMIT_DIR/run.final properties.calc.json
+fi
+
+#----------------------------------------------------
+# END
+#----------------------------------------------------
+# Compute execution time
+t1=$(date +%s)
+ts=$((t1-t0))
+echo "Done, in ${ts}s."
+# Goodbye, it's been a pleasure
